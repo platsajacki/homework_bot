@@ -109,6 +109,7 @@ def parse_status(homework):
         if key not in homework:
             message = f'Ответ API не содержит ключа "{key}"'
             logging.error(message)
+            send_message(bot, message)
             raise KeyError(message)
     homework_name = homework['homework_name']
     status = homework['status']
@@ -116,6 +117,7 @@ def parse_status(homework):
         message = ('Неожиданный статус домашней '
                    f'работы {homework_name}: {status}')
         logging.error(message)
+        send_message(bot, message)
         raise KeyError(message)
     verdict = HOMEWORK_VERDICTS[status]
     global last_status
