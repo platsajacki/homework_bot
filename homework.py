@@ -27,6 +27,8 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+last_status = None
+
 
 def setup_logging():
     """Настройка журналирования для бота."""
@@ -116,7 +118,10 @@ def parse_status(homework):
         logging.error(message)
         raise KeyError(message)
     verdict = HOMEWORK_VERDICTS[status]
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    global last_status
+    if last_status != status:
+        last_status = status
+        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
