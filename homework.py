@@ -13,7 +13,7 @@ from telegram.error import TelegramError
 """Настройка журналирования для бота."""
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
-    level=logging.DEBUG, stream=sys.stdout
+    level=logging.INFO, stream=sys.stdout
 )
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.ERROR)
@@ -68,10 +68,10 @@ def get_api_answer(timestamp):
         if homework_statuses.status_code == HTTPStatus.OK:
             return homework_statuses.json()
         if homework_statuses.status_code == HTTPStatus.BAD_REQUEST:
-            message = homework_statuses['error']['error']
+            error = homework_statuses['error']['error']
         if homework_statuses.status_code == HTTPStatus.UNAUTHORIZED:
-            message = homework_statuses['message']
-        logging.error(f'Ошибка при выполнении HTTP-запроса: {message}')
+            error = homework_statuses['message']
+        logging.error(error)
     except RequestException as error:
         logging.error(f'Ошибка при выполнении HTTP-запроса: {error}')
 
@@ -79,37 +79,25 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
     if not isinstance(response, dict):
-        message = 'В ответе API структура данных не соответствует ожиданиям'
-        logging.error(message)
-        raise TypeError(message)
-    elif 'homeworks' not in response:
-        message = 'В ответe API отсутсвует ключ "homeworks"'
-        logging.error(message)
-        raise TypeError(message)
-    elif not isinstance(response['homeworks'], list):
-        message = ('В ответе API под ключом "homeworks" '
-                   'данные приходят не в виде списка')
-        logging.error(message)
-        raise TypeError(message)
-    return True
+        raise TypeError('В ответе API структура данных не соответствует '
+                        'ожиданиям')
+    elif (homeworks := response.get('homeworks')) is None:
+        raise TypeError('В ответe API отсутсвует ключ "homeworks"')
+    elif not isinstance(homeworks, list):
+        raise TypeError('В ответе API под ключом "homeworks" '
+                        'данные приходят не в виде списка')
 
 
 def parse_status(homework):
     """Извлекает из конкретной домашней работе статус этой работы."""
     for key in 'homework_name', 'status':
         if key not in homework:
-            message = f'Ответ API не содержит ключа "{key}"'
-            logging.error(message)
-            send_message(bot, message)
-            raise KeyError(message)
+            raise KeyError(f'Ответ API не содержит ключа "{key}"')
     homework_name = homework['homework_name']
     status = homework['status']
     if status not in HOMEWORK_VERDICTS:
-        message = ('Неожиданный статус домашней '
-                   f'работы {homework_name}: {status}')
-        logging.error(message)
-        send_message(bot, message)
-        raise KeyError(message)
+        raise KeyError('Неожиданный статус домашней '
+                       f'работы {homework_name}: {status}')
     verdict = HOMEWORK_VERDICTS[status]
     global last_status
     if last_status != status:
@@ -121,9 +109,8 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
 
-    global bot
     bot = Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = int(time.time()) - 1000000
 
     while True:
         try:
@@ -131,7 +118,14 @@ def main():
             timestamp = response['current_date']
             check_response(response)
             homeworks = response['homeworks']
-            send_message(bot, parse_status(homeworks[0]))
+            if homeworks:
+                send_message(bot, parse_status(homeworks[0]))
+        except TypeError as error:
+            logging.error(error)
+            send_message(bot, error)
+        except KeyError as error:
+            logging.error(error)
+            send_message(bot, error)
         except TelegramError as error:
             logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
         except Exception as error:
