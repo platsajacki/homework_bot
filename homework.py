@@ -35,8 +35,6 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-last_status = None
-
 
 def check_tokens():
     """Проверяет доступность переменных окружения."""
@@ -99,10 +97,7 @@ def parse_status(homework):
         raise KeyError('Неожиданный статус домашней '
                        f'работы {homework_name}: {status}')
     verdict = HOMEWORK_VERDICTS[status]
-    global last_status
-    if last_status != status:
-        last_status = status
-        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
@@ -110,7 +105,8 @@ def main():
     check_tokens()
 
     bot = Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time()) - 1000000
+    timestamp = int(time.time())
+    last_message = None
 
     while True:
         try:
@@ -119,7 +115,8 @@ def main():
             check_response(response)
             homeworks = response['homeworks']
             if homeworks:
-                send_message(bot, parse_status(homeworks[0]))
+                if (message := parse_status(homeworks[0])) != last_message:
+                    send_message(bot, message)
         except TypeError as error:
             logging.error(error)
             send_message(bot, error)
