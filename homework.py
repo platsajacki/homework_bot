@@ -10,8 +10,16 @@ from requests.exceptions import RequestException
 from telegram import Bot
 from telegram.error import TelegramError
 
-load_dotenv()
+"""Настройка журналирования для бота."""
+logging.basicConfig(
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    level=logging.DEBUG, stream=sys.stdout
+)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.ERROR)
+logging.getLogger(__name__).addHandler(handler)
 
+load_dotenv()
 
 PRACTICUM_TOKEN = getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = getenv('TELEGRAM_TOKEN')
@@ -30,17 +38,6 @@ HOMEWORK_VERDICTS = {
 last_status = None
 
 
-def setup_logging():
-    """Настройка журналирования для бота."""
-    logging.basicConfig(
-        format='%(asctime)s [%(levelname)s] %(message)s',
-        level=logging.DEBUG, stream=sys.stdout
-    )
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.ERROR)
-    logging.getLogger(__name__).addHandler(handler)
-
-
 def check_tokens():
     """Проверяет доступность переменных окружения."""
     tokens = {
@@ -57,11 +54,8 @@ def check_tokens():
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
-    try:
-        bot.send_message(TELEGRAM_CHAT_ID, message)
-        logging.debug(f'Отправка сообщения в Telegram: {message}')
-    except TelegramError as error:
-        logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
+    bot.send_message(TELEGRAM_CHAT_ID, message)
+    logging.debug('Отправка сообщения в Telegram')
 
 
 def get_api_answer(timestamp):
@@ -77,12 +71,9 @@ def get_api_answer(timestamp):
             message = homework_statuses['error']['error']
         if homework_statuses.status_code == HTTPStatus.UNAUTHORIZED:
             message = homework_statuses['message']
-        logging.error(message)
-        send_message(bot, message)
+        logging.error(f'Ошибка при выполнении HTTP-запроса: {message}')
     except RequestException as error:
-        message = f'Ошибка при выполнении HTTP-запроса: {error}'
-        logging.error(message)
-        send_message(bot, message)
+        logging.error(f'Ошибка при выполнении HTTP-запроса: {error}')
 
 
 def check_response(response):
@@ -128,7 +119,6 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    setup_logging()
     check_tokens()
 
     global bot
@@ -139,15 +129,17 @@ def main():
         try:
             response = get_api_answer(timestamp)
             timestamp = response['current_date']
-            if check_response(response):
-                homeworks = response['homeworks']
-                for homework in homeworks:
-                    send_message(bot, parse_status(homework))
+            check_response(response)
+            homeworks = response['homeworks']
+            send_message(bot, parse_status(homeworks[0]))
+        except TelegramError as error:
+            logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
             send_message(bot, message)
-        time.sleep(RETRY_PERIOD)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
