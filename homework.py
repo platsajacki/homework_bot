@@ -6,11 +6,13 @@ from os import getenv
 
 import requests
 from dotenv import load_dotenv
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, HTTPError
 from telegram import Bot
 from telegram.error import TelegramError
 
-"""Настройка журналирования для бота."""
+from exceptions import ApiError
+
+# Настройка журналирования для бота.
 logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s',
     level=logging.INFO, stream=sys.stdout
@@ -59,19 +61,20 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
     try:
-        params = {'from_date': timestamp}
+        params = {'from_date': 'timestamp'}
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=params
         )
         if homework_statuses.status_code == HTTPStatus.OK:
             return homework_statuses.json()
-        if homework_statuses.status_code == HTTPStatus.BAD_REQUEST:
-            error = homework_statuses['error']['error']
-        if homework_statuses.status_code == HTTPStatus.UNAUTHORIZED:
-            error = homework_statuses['message']
-        logging.error(error)
+        elif homework_statuses.status_code == HTTPStatus.BAD_REQUEST:
+            raise HTTPError(homework_statuses.json()['error']['error'])
+        elif homework_statuses.status_code == HTTPStatus.UNAUTHORIZED:
+            raise HTTPError(homework_statuses.json()['message'])
+        else:
+            raise HTTPError('Произошла ошибка при выполнении запроса к API.')
     except RequestException as error:
-        logging.error(f'Ошибка при выполнении HTTP-запроса: {error}')
+        raise ApiError(error)
 
 
 def check_response(response):
@@ -93,7 +96,7 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из конкретной домашней работе статус этой работы."""
-    for key in 'homework_name', 'status':
+    for key in ['homework_name', 'status']:
         if key not in homework:
             raise KeyError(
                 f'Ответ API не содержит ключа "{key}"'
@@ -127,11 +130,8 @@ def main():
                     send_message(bot, message)
         except TelegramError as error:
             logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
-        except Exception:
-            type_error, value_error, _ = sys.exc_info()
-            message = (
-                f'Сбой в работе программы. {type_error}: {value_error}'
-            )
+        except Exception as error:
+            message = f'Сбой в работе программы. {error}'
             logging.error(message)
             send_message(bot, message)
         finally:
