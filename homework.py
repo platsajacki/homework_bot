@@ -77,25 +77,33 @@ def get_api_answer(timestamp):
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
     if not isinstance(response, dict):
-        raise TypeError('В ответе API структура данных не соответствует '
-                        'ожиданиям')
+        raise TypeError(
+            'В ответе API структура данных не соответствует ожиданиям'
+        )
     elif (homeworks := response.get('homeworks')) is None:
-        raise TypeError('В ответe API отсутсвует ключ "homeworks"')
+        raise TypeError(
+            'В ответe API отсутсвует ключ "homeworks"'
+        )
     elif not isinstance(homeworks, list):
-        raise TypeError('В ответе API под ключом "homeworks" '
-                        'данные приходят не в виде списка')
+        raise TypeError(
+            'В ответе API под ключом "homeworks" '
+            'данные приходят не в виде списка'
+        )
 
 
 def parse_status(homework):
     """Извлекает из конкретной домашней работе статус этой работы."""
     for key in 'homework_name', 'status':
         if key not in homework:
-            raise KeyError(f'Ответ API не содержит ключа "{key}"')
-    homework_name = homework['homework_name']
-    status = homework['status']
+            raise KeyError(
+                f'Ответ API не содержит ключа "{key}"'
+            )
+    homework_name = homework.get('homework_name')
+    status = homework.get('status')
     if status not in HOMEWORK_VERDICTS:
-        raise KeyError('Неожиданный статус домашней '
-                       f'работы {homework_name}: {status}')
+        raise KeyError(
+            f'Неожиданный статус домашней работы {homework_name}: {status}'
+        )
     verdict = HOMEWORK_VERDICTS[status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -111,22 +119,19 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            timestamp = response['current_date']
             check_response(response)
+            timestamp = response['current_date']
             homeworks = response['homeworks']
             if homeworks:
                 if (message := parse_status(homeworks[0])) != last_message:
                     send_message(bot, message)
-        except TypeError as error:
-            logging.error(error)
-            send_message(bot, error)
-        except KeyError as error:
-            logging.error(error)
-            send_message(bot, error)
         except TelegramError as error:
             logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
-        except Exception as error:
-            message = f'Сбой в работе программы: {error}'
+        except Exception:
+            type_error, value_error, _ = sys.exc_info()
+            message = (
+                f'Сбой в работе программы. {type_error}: {value_error}'
+            )
             logging.error(message)
             send_message(bot, message)
         finally:
