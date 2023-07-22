@@ -71,7 +71,7 @@ def get_api_answer(timestamp):
             raise HTTPError(homework_statuses.json()['error']['error'])
         elif homework_statuses.status_code == HTTPStatus.UNAUTHORIZED:
             raise HTTPError(homework_statuses.json()['message'])
-        else:
+        elif homework_statuses.status_code != HTTPStatus.OK:
             raise HTTPError('Произошла ошибка при выполнении запроса к API.')
     except RequestException as error:
         raise ApiError(error)
