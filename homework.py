@@ -54,8 +54,11 @@ def check_tokens():
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
-    bot.send_message(TELEGRAM_CHAT_ID, message)
-    logging.debug('Отправка сообщения в Telegram')
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+        logging.debug('Отправка сообщения в Telegram')
+    except TelegramError as error:
+        logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
 
 
 def get_api_answer(timestamp):
@@ -128,8 +131,6 @@ def main():
             if homeworks:
                 if (message := parse_status(homeworks[0])) != last_message:
                     send_message(bot, message)
-        except TelegramError as error:
-            logging.error(f'Ошибка при отправке сообщения в Telegram: {error}')
         except Exception as error:
             message = f'Сбой в работе программы. {error}'
             logging.error(message)
